@@ -1,0 +1,28 @@
+replicaCount: 1
+
+image:
+  repository: dso-shop
+  tag: latest
+  # Якщо задано digest (sha256:...), образ посилається за digest, а tag ігнорується.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+# Ім'я Secret із ключем database-url. Якщо Secret відсутній, застосунок
+# використовує вбудовану SQLite-базу (лише для демонстрації).
+databaseSecretName: dso-shop-db
+
+# Ім'я Secret із ключем api-key (ключ платіжного шлюзу DSOPay).
+paymentSecretName: dso-shop-payment
+
+podSecurityContext: {}
+
+securityContext:
+  privileged: true
+
+resources: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+podLabels: {}

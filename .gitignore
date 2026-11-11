@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Локальні дані та секрети
+.env
+*.sqlite3
+*.db
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
+kubeconfig*
+
+# Helm
+rendered.yaml
+deploy/helm/*/charts/
+
+# IDE / ОС
+.idea/
+.vscode/
+.DS_Store

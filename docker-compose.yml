@@ -1,0 +1,38 @@
+# Локальне середовище DSO-Shop: застосунок + PostgreSQL.
+#   docker compose up -d --build
+#   curl -s http://localhost:8080/api/health
+# Ім'я образу застосунку можна перевизначити: DSO_IMAGE=ghcr.io/<логін>/dso-shop@sha256:... docker compose up -d --no-build
+services:
+  app:
+    image: ${DSO_IMAGE:-dso-shop:local}
+    build:
+      context: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgresql://dso:${POSTGRES_PASSWORD:-dso-local-dev}@db:5432/dso_shop
+      LOG_LEVEL: INFO
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: dso_shop
+      POSTGRES_USER: dso
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dso-local-dev}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dso -d dso_shop"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:

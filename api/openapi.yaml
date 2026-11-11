@@ -1,0 +1,765 @@
+openapi: 3.0.3
+info:
+  title: DSO-Shop API
+  version: 1.3.0
+  description: |
+    REST API навчального інтернет-магазину DSO-Shop (курс DevSecOps).
+    Автентифікація: Bearer-токен (JWT), який видає `POST /api/auth/login`.
+    Навчальний обліковий запис покупця: `test` / `test-password`.
+  license:
+    name: MIT
+servers:
+  - url: http://localhost:8080
+    description: Локальний запуск (docker compose)
+tags:
+  - name: health
+  - name: catalog
+  - name: auth
+  - name: cart
+  - name: orders
+  - name: payments
+  - name: admin
+paths:
+  /api/health:
+    get:
+      tags: [health]
+      summary: Перевірка стану застосунку і бази даних
+      operationId: getHealth
+      responses:
+        "200":
+          description: Застосунок і база даних доступні
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "503":
+          description: База даних недоступна
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+  /api/products:
+    get:
+      tags: [catalog]
+      summary: Перелік товарів (з необов'язковим пошуком за назвою)
+      operationId: listProducts
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Фрагмент назви товару (якщо задано — виконується пошук)
+          schema:
+            type: string
+            maxLength: 100
+          example: mug
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Перелік товарів
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Product"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/products/search:
+    get:
+      tags: [catalog]
+      summary: Пошук товарів за фрагментом назви (без урахування регістру)
+      operationId: searchProducts
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Фрагмент назви товару
+          schema:
+            type: string
+            maxLength: 100
+          example: mug
+      responses:
+        "200":
+          description: Знайдені товари
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProductSummary"
+
+  /api/products/{productId}:
+    get:
+      tags: [catalog]
+      summary: Картка товару
+      operationId: getProduct
+      parameters:
+        - $ref: "#/components/parameters/ProductId"
+      responses:
+        "200":
+          description: Товар
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/auth/register:
+    post:
+      tags: [auth]
+      summary: Реєстрація покупця
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Обліковий запис створено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Користувач уже існує
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/login:
+    post:
+      tags: [auth]
+      summary: Вхід і отримання токена доступу
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Токен доступу
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/me:
+    get:
+      tags: [auth]
+      summary: Поточний користувач
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Профіль користувача
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/password-reset:
+    post:
+      tags: [auth]
+      summary: Запит на відновлення пароля (лист на e-mail)
+      operationId: requestPasswordReset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: test@dso-shop.example
+      responses:
+        "202":
+          description: Запит прийнято (відповідь однакова для наявних і відсутніх облікових записів)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/cart:
+    get:
+      tags: [cart]
+      summary: Вміст кошика
+      operationId: getCart
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Кошик
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/cart/items:
+    post:
+      tags: [cart]
+      summary: Додати товар до кошика або змінити кількість
+      operationId: setCartItem
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CartItemRequest"
+      responses:
+        "200":
+          description: Оновлений кошик
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/cart/items/{productId}:
+    delete:
+      tags: [cart]
+      summary: Видалити товар із кошика
+      operationId: removeCartItem
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProductId"
+      responses:
+        "200":
+          description: Оновлений кошик
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/orders:
+    get:
+      tags: [orders]
+      summary: Замовлення поточного користувача
+      operationId: listMyOrders
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Перелік замовлень
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [orders]
+      summary: Оформити замовлення з поточного кошика і створити платіж
+      operationId: checkout
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Замовлення створено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order:
+                    $ref: "#/components/schemas/Order"
+                  payment:
+                    $ref: "#/components/schemas/Payment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/orders/{orderId}:
+    get:
+      tags: [orders]
+      summary: Деталі замовлення (власник або адміністратор)
+      operationId: getOrder
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+      responses:
+        "200":
+          description: Замовлення
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/payments/webhook:
+    post:
+      tags: [payments]
+      summary: Сповіщення платіжного шлюзу DSOPay про результат оплати
+      description: Тіло запиту підписується HMAC-SHA256 спільним секретом; підпис передається в заголовку X-DSOPay-Signature (hex).
+      operationId: paymentWebhook
+      parameters:
+        - name: X-DSOPay-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentWebhook"
+      responses:
+        "200":
+          description: Сповіщення оброблено
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Невідповідність ідентифікатора платежу
+
+  /api/admin/products:
+    get:
+      tags: [admin]
+      summary: Перелік товарів для адміністратора
+      operationId: adminListProducts
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Перелік товарів
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Product"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [admin]
+      summary: Створити товар
+      operationId: adminCreateProduct
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201":
+          description: Товар створено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/admin/products/{productId}:
+    put:
+      tags: [admin]
+      summary: Змінити товар
+      operationId: adminUpdateProduct
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProductId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "200":
+          description: Оновлений товар
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [admin]
+      summary: Видалити товар
+      operationId: adminDeleteProduct
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProductId"
+      responses:
+        "204":
+          description: Товар видалено
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Товар використовується в замовленнях
+
+  /api/admin/orders:
+    get:
+      tags: [admin]
+      summary: Усі замовлення магазину
+      operationId: adminListOrders
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Перелік замовлень
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      example: 1
+
+  responses:
+    BadRequest:
+      description: Некоректний запит
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Потрібна автентифікація або невірні облікові дані
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Недостатньо прав
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Не знайдено
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        database:
+          type: string
+          example: ok
+        version:
+          type: string
+          example: 1.3.0
+    ProductSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        price:
+          type: number
+          format: double
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: DevSecOps Mug
+        description:
+          type: string
+        price:
+          type: number
+          format: double
+          example: 12.5
+        stock:
+          type: integer
+          example: 120
+        image_url:
+          type: string
+    ProductInput:
+      type: object
+      required: [name, price]
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          example: OWASP Socks
+        description:
+          type: string
+          maxLength: 2000
+          example: Шкарпетки з логотипом
+        price:
+          type: string
+          description: Ціна в гривнях, два знаки після коми
+          example: "7.25"
+        stock:
+          type: integer
+          minimum: 0
+          example: 10
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+          pattern: "^[a-zA-Z0-9_.-]{3,64}$"
+          example: student01
+        email:
+          type: string
+          format: email
+          example: student01@example.org
+        password:
+          type: string
+          minLength: 12
+          format: password
+          example: correct-horse-battery
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          example: test
+        password:
+          type: string
+          format: password
+          example: test-password
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [customer, admin]
+    CartItemRequest:
+      type: object
+      required: [product_id]
+      properties:
+        product_id:
+          type: integer
+          example: 1
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 99
+          default: 1
+          example: 1
+    CartItem:
+      type: object
+      properties:
+        product_id:
+          type: integer
+        name:
+          type: string
+        unit_price:
+          type: number
+          format: double
+        quantity:
+          type: integer
+    Cart:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItem"
+        total:
+          type: number
+          format: double
+    OrderItem:
+      type: object
+      properties:
+        product_id:
+          type: integer
+        name:
+          type: string
+        quantity:
+          type: integer
+        unit_price:
+          type: number
+          format: double
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        status:
+          type: string
+          enum: [pending, paid, failed]
+        total:
+          type: number
+          format: double
+        payment_ref:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItem"
+    Payment:
+      type: object
+      properties:
+        payment_ref:
+          type: string
+        status:
+          type: string
+        sandbox:
+          type: boolean
+    PaymentWebhook:
+      type: object
+      required: [order_id, status, payment_ref]
+      properties:
+        order_id:
+          type: integer
+          example: 1
+        status:
+          type: string
+          enum: [paid, failed]
+        payment_ref:
+          type: string
+          example: sandbox-0123456789abcdef

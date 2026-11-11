@@ -1,0 +1,12 @@
+.git
+.github
+.venv
+venv
+**/__pycache__
+*.pyc
+*.sqlite3
+.env
+.pytest_cache
+sbom/
+zap/
+infra/terraform/.terraform

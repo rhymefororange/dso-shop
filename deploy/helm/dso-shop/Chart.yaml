@@ -1,0 +1,6 @@
+apiVersion: v2
+name: dso-shop
+description: Навчальний інтернет-магазин DSO-Shop (Flask + PostgreSQL)
+type: application
+version: 0.3.0
+appVersion: "1.3.0"

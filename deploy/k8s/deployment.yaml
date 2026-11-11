@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dso-shop
+  labels:
+    app.kubernetes.io/name: dso-shop
+    app.kubernetes.io/component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dso-shop
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dso-shop
+        app.kubernetes.io/component: api
+    spec:
+      containers:
+        - name: api
+          image: dso-shop:latest
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: dso-shop-db
+                  key: database-url
+                  optional: true
+            - name: PAYMENT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dso-shop-payment
+                  key: api-key
+                  optional: true
+            - name: LOG_LEVEL
+              value: INFO
+          securityContext:
+            privileged: true
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
